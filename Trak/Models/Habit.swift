@@ -30,16 +30,31 @@ struct Habit: Identifiable, Codable {
         var targetDays: Int
         var totalDays: Int
         var startDate: Date
-        
-        var endDate: Date {
-            Calendar.current.date(byAdding: .day, value: totalDays - 1, to: startDate) ?? startDate
+        var isRecurring: Bool = false
+
+        /// For recurring habits, returns the start of whichever cycle we're currently in.
+        /// For one-time habits, always returns the original startDate.
+        var currentPeriodStart: Date {
+            guard isRecurring else { return startDate }
+            let cal = Calendar.current
+            let origin = cal.startOfDay(for: startDate)
+            let today  = cal.startOfDay(for: Date())
+            let elapsed = cal.dateComponents([.day], from: origin, to: today).day ?? 0
+            guard elapsed >= 0 else { return startDate }
+            let cycleIndex = elapsed / totalDays
+            return cal.date(byAdding: .day, value: cycleIndex * totalDays, to: origin) ?? startDate
         }
-        
+
+        var endDate: Date {
+            Calendar.current.date(byAdding: .day, value: totalDays - 1, to: currentPeriodStart) ?? currentPeriodStart
+        }
+
         var isActive: Bool {
+            if isRecurring { return true }
             let now = Date()
             return now >= startDate && now <= endDate
         }
-        
+
         var remainingDays: Int {
             let now = Date()
             let remaining = Calendar.current.dateComponents([.day], from: now, to: endDate).day ?? 0
@@ -251,8 +266,8 @@ struct Habit: Identifiable, Codable {
     
     func getCompletedDaysInCurrentPeriod() -> Int {
         guard let customFreq = customFrequency else { return 0 }
-        
-        let startDate = Calendar.current.startOfDay(for: customFreq.startDate)
+
+        let startDate = Calendar.current.startOfDay(for: customFreq.currentPeriodStart)
         let endDate = Calendar.current.startOfDay(for: customFreq.endDate)
         
         let periodicCompletions = completions.filter { completion in
