@@ -225,19 +225,64 @@ struct CalendarView: View {
     
     private func getHabitsForDay(_ date: Date) -> [Habit] {
         let dayStart = calendar.startOfDay(for: date)
-        
+        let today = calendar.startOfDay(for: Date())
+
         return habitStore.habits.filter { habit in
             switch habit.frequency {
             case .daily, .morning, .evening:
                 return dayStart >= calendar.startOfDay(for: habit.createdAt)
-                
+
             case .custom:
                 guard let customFreq = habit.customFrequency else { return false }
                 let startDate = calendar.startOfDay(for: customFreq.startDate)
-                let endDate = calendar.startOfDay(for: customFreq.endDate)
-                return dayStart >= startDate && dayStart <= endDate
+                guard dayStart >= startDate else { return false }
+
+                if !customFreq.isRecurring {
+                    let endDate = calendar.startOfDay(for: customFreq.endDate)
+                    return dayStart <= endDate
+                }
+
+                // Recurring habit:
+                // 1. Always show days where the habit was actually completed.
+                let df = DateFormatter()
+                df.dateFormat = "yyyy-MM-dd"
+                let dayKey = df.string(from: date)
+                if habit.completions.contains(where: { $0.dayKey == dayKey }) {
+                    return true
+                }
+
+                // 2. For today and future days, show only if this date's cycle
+                //    still has room (target not yet met).
+                guard dayStart >= today else { return false }
+
+                let daysFromOrigin = calendar.dateComponents([.day], from: startDate, to: dayStart).day ?? 0
+                let cycleIndex = daysFromOrigin / customFreq.totalDays
+                let cycleStart = calendar.date(byAdding: .day, value: cycleIndex * customFreq.totalDays, to: startDate) ?? startDate
+                let cycleEnd = calendar.date(byAdding: .day, value: customFreq.totalDays - 1, to: cycleStart) ?? cycleStart
+                let completedInCycle = completedDaysInCycle(habit: habit, cycleStart: cycleStart, cycleEnd: cycleEnd)
+                return completedInCycle < customFreq.targetDays
             }
         }
+    }
+
+    private func completedDaysInCycle(habit: Habit, cycleStart: Date, cycleEnd: Date) -> Int {
+        let start = calendar.startOfDay(for: cycleStart)
+        let end = calendar.startOfDay(for: cycleEnd)
+        let cycleCompletions = habit.completions.filter {
+            let day = calendar.startOfDay(for: $0.date)
+            return day >= start && day <= end
+        }
+        let groupedByDay = Dictionary(grouping: cycleCompletions) { $0.dayKey }
+        var count = 0
+        for (_, dayCompletions) in groupedByDay {
+            let totalValue = dayCompletions.reduce(0) { $0 + $1.value }
+            if let goal = habit.dailyGoal, goal.type != .single {
+                if totalValue >= goal.target { count += 1 }
+            } else {
+                count += 1
+            }
+        }
+        return count
     }
     
     private func getHabitCount(for date: Date) -> Int {
@@ -303,7 +348,7 @@ struct CalendarDayCell: View {
                         isCurrentMonth ? AppStyles.Colors.text : AppStyles.Colors.secondaryText
                     )
                 
-                if !isPastDate && habitCount > 0 {
+                if habitCount > 0 {
                     HStack(spacing: 2) {
                         ForEach(0..<min(habitCount, 3), id: \.self) { index in
                             Circle()

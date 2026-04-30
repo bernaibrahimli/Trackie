@@ -229,71 +229,40 @@ struct HabitCircleView: View {
 
     // MARK: - Segmented Ring (count type only)
 
-    /// Draws a dashed ring broken into N equal segments (one per tap needed).
-    /// Filled segments are revealed one-by-one as the user logs progress.
-    ///
-    /// Geometry:
-    ///   circumference ≈ 2π × 47 ≈ 295 pt  (100 pt circle, 6 pt stroke)
-    ///   Each slot      = circumference / N
-    ///   Gap per slot   = slot × 0.18        (18% gap keeps segments visually distinct)
-    ///   Segment length = slot - gap
-    ///
-    /// Animation:
-    ///   The foreground circle is trimmed to (filledSegments / totalSegments).
-    ///   Because each segment+gap cycle equals exactly 1/N of the circumference,
-    ///   trimming to k/N reveals precisely k complete filled segments with no
-    ///   partial segment bleeding. SwiftUI then spring-animates the trim change.
+    /// Each segment is an independent trimmed arc so segment boundaries are
+    /// defined by exact fractions (i/N … i/N + filledFraction/N) with no
+    /// floating-point accumulation. The old single-trim + dash approach
+    /// caused a visible bleed into the next segment because 2π×r / N is
+    /// irrational, making the trim boundary miss the gap by a few pixels.
     private var countSegmentedRingView: some View {
-        let goal        = habit.dailyGoal!
+        let goal           = habit.dailyGoal!
         let totalSegments  = max(1, goal.target / goal.increment)
         let filledSegments = min(habit.todayProgress.current / goal.increment, totalSegments)
-        let progress    = Double(filledSegments) / Double(totalSegments)
 
-        // Geometry
-        let lineWidth: CGFloat    = 6
-        let diameter: CGFloat     = 100
-        let effectiveRadius       = (diameter - lineWidth) / 2          // stroke sits on path centre
-        let circumference         = 2 * CGFloat.pi * effectiveRadius    // ≈ 295 pt
-        let slotLength            = circumference / CGFloat(totalSegments)
-        let gapWidth              = slotLength * 0.18
-        let segmentLength         = slotLength - gapWidth
+        let lineWidth: CGFloat = 6
+        let diameter: CGFloat  = 100
+        // Each segment occupies 1/N of the circle; the painted arc is 82 % of
+        // that slot and the remaining 18 % is the gap (left unpainted).
+        let paintedFraction: CGFloat = 0.82 / CGFloat(totalSegments)
 
         return ZStack {
-            // Solid background so the ring floats on the card colour
             Circle()
                 .fill(AppStyles.Colors.secondaryBackground)
                 .frame(width: diameter, height: diameter)
 
-            // All N segments dimmed — acts as the "empty" track
-            Circle()
-                .stroke(
-                    AppStyles.Colors.primary.opacity(0.15),
-                    style: StrokeStyle(
-                        lineWidth: lineWidth,
-                        lineCap: .butt,
-                        dash: [segmentLength, gapWidth]
-                    )
-                )
-                .frame(width: diameter, height: diameter)
-                .rotationEffect(.degrees(-90))  // first segment starts at 12 o'clock
-
-            // Filled segments — same dash array, trimmed to progress fraction.
-            // The trim boundary always falls on a segment boundary because
-            // progress = k/N and each dash cycle = C/N.
-            if filledSegments > 0 {
+            ForEach(0..<totalSegments, id: \.self) { i in
+                let slotStart = CGFloat(i) / CGFloat(totalSegments)
                 Circle()
-                    .trim(from: 0, to: progress)
+                    .trim(from: slotStart, to: slotStart + paintedFraction)
                     .stroke(
-                        AppStyles.Colors.primary,
-                        style: StrokeStyle(
-                            lineWidth: lineWidth,
-                            lineCap: .butt,
-                            dash: [segmentLength, gapWidth]
-                        )
+                        i < filledSegments
+                            ? AppStyles.Colors.primary
+                            : AppStyles.Colors.primary.opacity(0.15),
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt)
                     )
                     .frame(width: diameter, height: diameter)
                     .rotationEffect(.degrees(-90))
-                    .animation(AppStyles.Animations.spring, value: progress)
+                    .animation(AppStyles.Animations.spring, value: filledSegments)
             }
         }
         .shadow(color: AppStyles.Colors.primary.opacity(0.2), radius: 8, x: 0, y: 4)

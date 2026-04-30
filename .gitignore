@@ -31,3 +31,6 @@ Packages/
 
 # Archives
 *.zip
+
+# Backend
+backend/.env

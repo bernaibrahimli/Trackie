@@ -121,4 +121,23 @@ class NotificationManager {
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: habit.notificationIdentifiers)
         }
     }
+
+    // MARK: - Timer Completion Notifications
+
+    func scheduleTimerCompletionNotification(for habit: Habit, duration: Int) {
+        let content = UNMutableNotificationContent()
+        content.title = "\(habit.name) Complete!"
+        content.body = "Your \(duration)-minute session is done. Great work!"
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: Double(duration * 60), repeats: false)
+        let identifier = "timer-completion-\(habit.id.uuidString)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    func cancelTimerCompletionNotification(for habitId: UUID) {
+        let identifier = "timer-completion-\(habitId.uuidString)"
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
 }

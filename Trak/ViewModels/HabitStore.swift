@@ -11,10 +11,12 @@ class HabitStore: ObservableObject {
             updateWidgets()
         }
     }
-    
+
+    private var activeAutoTimers: [UUID: DispatchWorkItem] = [:]
+
     init() {
         load()
-        
+
     }
     
     // MARK: - Widget Güncelleme Fonksiyonu
@@ -50,6 +52,20 @@ class HabitStore: ObservableObject {
     }
     func checkAndResetExpiredHabits() {
         checkAndResetHabits()
+    }
+
+    /// Call this when the app returns to the foreground so sessions that elapsed
+    /// while backgrounded are automatically completed.
+    func checkAndAutoCompleteActiveTimers() {
+        let now = Date()
+        for habit in habits {
+            guard let dailyGoal = habit.dailyGoal, dailyGoal.type == .duration else { continue }
+            guard habit.hasActiveSession, let startTime = habit.activeSessionStartTime else { continue }
+            let elapsed = now.timeIntervalSince(startTime)
+            if elapsed >= Double(dailyGoal.target * 60) {
+                stopTimerSession(habitId: habit.id)
+            }
+        }
     }
 
     
@@ -129,23 +145,39 @@ class HabitStore: ObservableObject {
         if let index = habits.firstIndex(where: { $0.id == habitId }) {
             let habit = habits[index]
             let now = Date()
-            
-            
-            // Yeni session kaydı oluştur
+
             let sessionRecord = Habit.CompletionRecord(
                 date: now,
-                value: 0, // Henüz süre hesaplanmadı
+                value: 0,
                 isCorrectTime: habit.isCorrectTimeToComplete(),
                 startTime: now,
                 endTime: nil
             )
-            
+
             habits[index].completions.append(sessionRecord)
             playSound(1054)
+
+            // Schedule auto-completion when the target duration elapses
+            if let target = habit.dailyGoal?.target, target > 0 {
+                let workItem = DispatchWorkItem { [weak self] in
+                    self?.stopTimerSession(habitId: habitId)
+                }
+                activeAutoTimers[habitId] = workItem
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(target * 60), execute: workItem)
+
+                NotificationManager.shared.scheduleTimerCompletionNotification(for: habit, duration: target)
+            }
         }
     }
 
     func stopTimerSession(habitId: UUID) {
+        // Cancel the scheduled auto-completion if the user stopped manually
+        if let workItem = activeAutoTimers[habitId] {
+            workItem.cancel()
+            activeAutoTimers.removeValue(forKey: habitId)
+        }
+        NotificationManager.shared.cancelTimerCompletionNotification(for: habitId)
+
         if let index = habits.firstIndex(where: { $0.id == habitId }) {
             let habit = habits[index]
             let now = Date()
@@ -155,7 +187,8 @@ class HabitStore: ObservableObject {
                 completion.startTime != nil && completion.endTime == nil
             }) {
                 let startTime = habits[index].completions[activeSessionIndex].startTime!
-                let duration = Int(now.timeIntervalSince(startTime) / 60)
+                let elapsed = Int(now.timeIntervalSince(startTime) / 60)
+                let duration = min(elapsed, habit.dailyGoal?.target ?? elapsed)
                 
                 habits[index].completions[activeSessionIndex].endTime = now
                 habits[index].completions[activeSessionIndex].value = duration

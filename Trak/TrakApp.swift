@@ -4,6 +4,7 @@ import GoogleMobileAds
 @main
 struct HabitTrackApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
 
     @StateObject private var habitStore = HabitStore()
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -51,6 +52,11 @@ struct HabitTrackApp: App {
                     print("🔔 Splash kapandı — şimdi reklam gösterme denenecek")
                     // AppOpenAdManager.showAdIfAvailable() reklam hazır ise gösterecek
                     AppOpenAdManager.shared.showAdIfAvailable()
+                }
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active {
+                    habitStore.checkAndAutoCompleteActiveTimers()
                 }
             }
         }

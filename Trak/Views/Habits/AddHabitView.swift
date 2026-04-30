@@ -374,6 +374,7 @@ struct AddHabitView: View {
                     .labelsHidden()
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var intervalSummary: String {

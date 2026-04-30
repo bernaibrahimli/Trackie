@@ -55,6 +55,33 @@ struct HabitDashboardView: View {
         return f.string(from: selectedDate)
     }
 
+    /// Returns true if `habit` should appear on a future `date`.
+    /// Daily/morning/evening habits always appear.
+    /// Recurring custom habits disappear from future days in the current cycle once the target is met.
+    private func habitAppliesToFutureDate(_ habit: Habit, date: Date) -> Bool {
+        switch habit.frequency {
+        case .daily, .morning, .evening:
+            return true
+        case .custom:
+            guard let cf = habit.customFrequency else { return false }
+            let cal = Calendar.current
+            let origin = cal.startOfDay(for: cf.startDate)
+            let target = cal.startOfDay(for: date)
+            guard target >= origin else { return false }
+            if !cf.isRecurring {
+                let endDay = cal.startOfDay(for: cf.endDate)
+                return target <= endDay
+            }
+            // Recurring: dates beyond the current cycle always appear (new cycle resets progress).
+            let currentEnd = cal.date(byAdding: .day, value: cf.totalDays - 1, to: cf.currentPeriodStart) ?? cf.currentPeriodStart
+            if target > cal.startOfDay(for: currentEnd) {
+                return true
+            }
+            // Same cycle as today — hide if the target is already met.
+            return habit.getCompletedDaysInCurrentPeriod() < cf.targetDays
+        }
+    }
+
     /// Returns true if `habit` has a completion record on `date` that satisfies its goal.
     private func habitCompletedOn(_ habit: Habit, date: Date) -> Bool {
         let f = DateFormatter()
@@ -318,8 +345,11 @@ struct HabitDashboardView: View {
     }
 
     private var habitsGridView: some View {
-        LazyVGrid(columns: columns, spacing: 40) {
-            ForEach(Array(habitStore.habits.enumerated()), id: \.element.id) { index, habit in
+        let habits = isSelectedDateFuture
+            ? habitStore.habits.filter { habitAppliesToFutureDate($0, date: selectedDate) }
+            : habitStore.habits
+        return LazyVGrid(columns: columns, spacing: 40) {
+            ForEach(Array(habits.enumerated()), id: \.element.id) { index, habit in
                 habitCircleView(habit: habit, index: index)
                     .contentShape(Circle())
             }
@@ -351,11 +381,13 @@ struct HabitDashboardView: View {
                 }
 
             } else if isSelectedDateFuture {
-                // Visible but not interactive
-                HabitCircleView(habit: habit, iconName: icon, onTap: {})
-                    .opacity(0.5)
-                    .disabled(true)
-                    .allowsHitTesting(false)
+                // Future date — show as not yet done, not interactive
+                PastHabitCircleView(
+                    habit: habit,
+                    iconName: icon,
+                    wasCompleted: false
+                )
+                .allowsHitTesting(false)
 
             } else {
                 // Past date — read-only historical view

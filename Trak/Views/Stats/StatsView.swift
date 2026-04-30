@@ -55,22 +55,23 @@ struct StatsView: View {
                                 ExploreView()
                             }*/
                         
-                        HStack(spacing: AppStyles.Dimensions.standardPadding) {
+                        HStack(alignment: .top, spacing: AppStyles.Dimensions.standardPadding) {
                             StatCard(
                                 title: "Guide",
                                 value: "",
-                                subtitle: "Learn How to Add Your Custom Habit.",
+                                subtitle: "Learn How to Add Habits.",
                                 icon: "info.circle.fill",
                                 color: Color.yellow,
                                 iconBackgroundColor: Color.yellow
                             )
+                            .frame(maxWidth: .infinity)
                             .onTapGesture {
                                 showingTutorial = true
                             }
                             .sheet(isPresented: $showingTutorial) {
                                 HabitTutorialView()
                             }
-                            
+
                             StatCard(
                                 title: "About",
                                 value: "",
@@ -79,6 +80,7 @@ struct StatsView: View {
                                 color: Color.blue,
                                 iconBackgroundColor: Color.blue.opacity(0.8)
                             )
+                            .frame(maxWidth: .infinity)
                             .onTapGesture {
                                 showingDeveloperNote = true
                             }
