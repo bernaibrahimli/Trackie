@@ -163,163 +163,23 @@ final class AIManager {
         )
     }
 
-    // MARK: - Mock Implementation
-    // Replace this function body with a real API call (Gemini, OpenAI, etc.)
-    // The system prompt above + user text go in as the request.
-    // Decode the response JSON string into HabitResponse, then call habit(from:).
+    // MARK: - API Implementation
 
     static func parseHabitPrompt(text: String) async -> Habit? {
-        // Simulate network latency
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        let url = URL(string: "https://trackie-9jt0.onrender.com/parse-habit")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONEncoder().encode(["text": text])
 
-        let t = text.lowercased()
-
-        let reminderHour   = extractHour(from: t)
-        let hasReminder    = reminderHour != nil
-                          || t.contains("remind")
-                          || t.contains("notification")
-                          || t.contains("alert")
-
-        // Determine default reminder time: use extracted hour, or nil if no reminder
-        let resolvedHour   = reminderHour ?? (hasReminder ? 9 : nil)
-        let reminderDate   = resolvedHour.map { makeTime(hour: $0, minute: 0) } ?? nil
-
-        // ── Water / hydration ────────────────────────────────────────────
-        if t.contains("water") || (t.contains("drink") && !t.contains("coffee")) {
-            let target = extractNumber(from: t, near: ["glass", "cup", "bottle", "time"]) ?? 8
-            return Habit(
-                name: "Drink water",
-                frequency: .daily,
-                customFrequency: nil,
-                dailyGoal: Habit.DailyGoal(type: .count, target: target, increment: 1, unit: "glasses"),
-                reminderEnabled: hasReminder,
-                reminderTime: reminderDate
-            )
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let response = try JSONDecoder().decode(HabitResponse.self, from: data)
+            return habit(from: response)
+        } catch {
+            print("AIManager error: \(error)")
+            return nil
         }
-
-        // ── Running / jogging ────────────────────────────────────────────
-        if t.contains("run") || t.contains("jog") {
-            let minutes = extractNumber(from: t, near: ["min", "minute"]) ?? 30
-            let days    = min(extractNumber(from: t, near: ["day", "time", "week"]) ?? 5, 7)
-            let isWeekly = t.contains("week") || t.contains("day")
-            return Habit(
-                name: "Go for a run",
-                frequency: isWeekly ? .custom : .daily,
-                customFrequency: isWeekly
-                    ? Habit.CustomFrequency(targetDays: days, totalDays: 7, startDate: Date(), isRecurring: true)
-                    : nil,
-                dailyGoal: Habit.DailyGoal(type: .duration, target: minutes, increment: 1, unit: "min"),
-                reminderEnabled: hasReminder,
-                reminderTime: reminderDate
-            )
-        }
-
-        // ── Meditation ───────────────────────────────────────────────────
-        if t.contains("meditat") {
-            let minutes = extractNumber(from: t, near: ["min", "minute"]) ?? 10
-            return Habit(
-                name: "Meditate",
-                frequency: .daily,
-                customFrequency: nil,
-                dailyGoal: Habit.DailyGoal(type: .duration, target: minutes, increment: 1, unit: "min"),
-                reminderEnabled: hasReminder,
-                reminderTime: reminderDate ?? makeTime(hour: 8, minute: 0)
-            )
-        }
-
-        // ── Reading ──────────────────────────────────────────────────────
-        if t.contains("read") || t.contains("book") {
-            let amount  = extractNumber(from: t, near: ["page", "min", "minute"]) ?? 20
-            let inPages = t.contains("page")
-            return Habit(
-                name: "Read",
-                frequency: .daily,
-                customFrequency: nil,
-                dailyGoal: Habit.DailyGoal(
-                    type: inPages ? .count : .duration,
-                    target: amount,
-                    increment: 1,
-                    unit: inPages ? "pages" : "min"
-                ),
-                reminderEnabled: hasReminder,
-                reminderTime: reminderDate ?? (t.contains("bed") || t.contains("night") ? makeTime(hour: 21, minute: 0) : nil)
-            )
-        }
-
-        // ── Exercise / workout / gym ─────────────────────────────────────
-        if t.contains("exercise") || t.contains("workout") || t.contains("gym") || t.contains("train") {
-            let minutes = extractNumber(from: t, near: ["min", "minute"]) ?? 45
-            let days    = min(extractNumber(from: t, near: ["day", "time"]) ?? 4, 7)
-            return Habit(
-                name: "Exercise",
-                frequency: .custom,
-                customFrequency: Habit.CustomFrequency(targetDays: days, totalDays: 7, startDate: Date(), isRecurring: true),
-                dailyGoal: Habit.DailyGoal(type: .duration, target: minutes, increment: 1, unit: "min"),
-                reminderEnabled: hasReminder,
-                reminderTime: reminderDate ?? makeTime(hour: 7, minute: 0)
-            )
-        }
-
-        // ── Sleep ────────────────────────────────────────────────────────
-        if t.contains("sleep") || t.contains("bed time") || t.contains("bedtime") {
-            return Habit(
-                name: "Sleep early",
-                frequency: .daily,
-                customFrequency: nil,
-                dailyGoal: nil,
-                reminderEnabled: true,
-                reminderTime: reminderDate ?? makeTime(hour: 22, minute: 0)
-            )
-        }
-
-        // ── Push-ups / pull-ups / sit-ups ────────────────────────────────
-        if t.contains("push") || t.contains("pull") || t.contains("sit-up") || t.contains("situp") {
-            let reps = extractNumber(from: t, near: ["rep", "time", "push", "pull", "sit"]) ?? 20
-            let noun = t.contains("push") ? "push-ups" : t.contains("pull") ? "pull-ups" : "sit-ups"
-            return Habit(
-                name: noun.capitalized,
-                frequency: .daily,
-                customFrequency: nil,
-                dailyGoal: Habit.DailyGoal(type: .count, target: reps, increment: 1, unit: "reps"),
-                reminderEnabled: hasReminder,
-                reminderTime: reminderDate
-            )
-        }
-
-        // ── Coffee ───────────────────────────────────────────────────────
-        if t.contains("coffee") || t.contains("caffeine") {
-            return Habit(
-                name: "Limit coffee",
-                frequency: .daily,
-                customFrequency: nil,
-                dailyGoal: Habit.DailyGoal(type: .count, target: 2, increment: 1, unit: "cups"),
-                reminderEnabled: hasReminder,
-                reminderTime: reminderDate
-            )
-        }
-
-        // ── Vitamins / medication ────────────────────────────────────────
-        if t.contains("vitamin") || t.contains("supplement") || t.contains("medication") || t.contains("pill") {
-            return Habit(
-                name: "Take vitamins",
-                frequency: .daily,
-                customFrequency: nil,
-                dailyGoal: nil,
-                reminderEnabled: true,
-                reminderTime: reminderDate ?? makeTime(hour: 8, minute: 0)
-            )
-        }
-
-        // ── Generic fallback ─────────────────────────────────────────────
-        let name = extractHabitName(from: text)
-        return Habit(
-            name: name,
-            frequency: .daily,
-            customFrequency: nil,
-            dailyGoal: nil,
-            reminderEnabled: hasReminder,
-            reminderTime: reminderDate
-        )
     }
 
     // MARK: - Private Helpers
