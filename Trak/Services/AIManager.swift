@@ -174,6 +174,12 @@ final class AIManager {
 
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
+            // Check for backend error response before decoding
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errMsg = json["error"] as? String {
+                print("AIManager: backend error – \(errMsg)")
+                return nil
+            }
             let response = try JSONDecoder().decode(HabitResponse.self, from: data)
             return habit(from: response)
         } catch {

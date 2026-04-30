@@ -95,5 +95,7 @@ async def parse_habit(req: ParseHabitRequest):
         return data
 
     except Exception as e:
+        import traceback
         print(f"Error: {e}")
-        return {"error": "Could not parse habit. Please try again."}
+        traceback.print_exc()
+        return {"error": str(e)}

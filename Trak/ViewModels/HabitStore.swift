@@ -4,6 +4,7 @@ import Combine
 import AVFoundation
 import WidgetKit
 
+@MainActor
 class HabitStore: ObservableObject {
     @Published var habits: [Habit] = [] {
         didSet {
