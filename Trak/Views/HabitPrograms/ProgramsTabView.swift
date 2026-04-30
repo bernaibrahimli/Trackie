@@ -11,8 +11,6 @@ struct ProgramsTabView: View {
     @State private var disclaimerAccepted = false
 
     @State private var generatedProgram: HabitProgram?
-    @State private var showAIPreview = false
-    @State private var pendingRegenerate = false
 
     var body: some View {
         NavigationView {
@@ -22,10 +20,7 @@ struct ProgramsTabView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         // AI generate card
-                        AIGenerateProgramCard(
-                            generatedProgram: $generatedProgram,
-                            showPreview: $showAIPreview
-                        )
+                        AIGenerateProgramCard(generatedProgram: $generatedProgram)
                         .padding(.horizontal, 16)
                         .opacity(contentVisible ? 1 : 0)
                         .offset(y: contentVisible ? 0 : 20)
@@ -73,10 +68,6 @@ struct ProgramsTabView: View {
                 } else {
                     withAnimation { contentVisible = true }
                 }
-
-                if pendingRegenerate {
-                    pendingRegenerate = false
-                }
             }
             .onChange(of: disclaimerAccepted) { accepted in
                 if accepted {
@@ -91,18 +82,12 @@ struct ProgramsTabView: View {
             ProgramDetailView(program: program)
                 .environmentObject(habitStore)
         }
-        .fullScreenCover(isPresented: $showAIPreview) {
-            if let program = generatedProgram {
-                AIProgramPreviewSheet(
-                    program: program,
-                    onRegenerate: {
-                        pendingRegenerate = true
-                        showAIPreview = false
-                    },
-                    isPresented: $showAIPreview
-                )
-                .environmentObject(habitStore)
-            }
+        .fullScreenCover(item: $generatedProgram) { program in
+            AIProgramPreviewSheet(
+                program: program,
+                onRegenerate: { generatedProgram = nil }
+            )
+            .environmentObject(habitStore)
         }
     }
 }

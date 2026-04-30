@@ -4,8 +4,8 @@ import SwiftUI
 struct AIProgramPreviewSheet: View {
     let program: HabitProgram
     let onRegenerate: () -> Void
-    @Binding var isPresented: Bool
 
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var habitStore: HabitStore
     @State private var contentVisible = false
     @State private var showHabitLimitAlert = false
@@ -86,7 +86,7 @@ struct AIProgramPreviewSheet: View {
 
                             VStack {
                                 Button {
-                                    isPresented = false
+                                    dismiss()
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.system(size: 26))
@@ -146,7 +146,7 @@ struct AIProgramPreviewSheet: View {
                 VStack(spacing: 10) {
                     // Regenerate button
                     Button {
-                        isPresented = false
+                        dismiss()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             onRegenerate()
                         }
@@ -225,7 +225,7 @@ struct AIProgramPreviewSheet: View {
         }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            isPresented = false
+            dismiss()
         }
     }
 }

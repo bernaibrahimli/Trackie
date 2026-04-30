@@ -3,7 +3,6 @@ import SwiftUI
 
 struct AIGenerateProgramCard: View {
     @Binding var generatedProgram: HabitProgram?
-    @Binding var showPreview: Bool
 
     @State private var goalText: String = ""
     @State private var isGenerating: Bool = false
@@ -125,9 +124,8 @@ struct AIGenerateProgramCard: View {
 
         if let program = await AIManager.generateProgram(goal: input) {
             withAnimation(AppStyles.Animations.spring) {
-                generatedProgram = program
                 isGenerating = false
-                showPreview = true
+                generatedProgram = program
             }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         } else {
