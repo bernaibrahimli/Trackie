@@ -21,38 +21,33 @@ class NotificationManager {
         }
     }
     
-    func scheduleNotifications(for habit: Habit) {
+    @discardableResult
+    func scheduleNotifications(for habit: Habit) -> [String] {
         guard habit.reminderEnabled,
-              let reminderTime = habit.reminderTime else { return }
-        
-        // Cancel existing notifications
-        cancelNotifications(for: habit.id)
-        
-        var identifiers: [String] = []
+              let reminderTime = habit.reminderTime else { return [] }
+
         let calendar = Calendar.current
         let components = calendar.dateComponents([.hour, .minute], from: reminderTime)
-        
+        var identifiers: [String] = []
+
         switch habit.frequency {
         case .daily:
             identifiers.append(scheduleDailyNotification(habit: habit, components: components))
-            
+
         case .morning, .evening:
             identifiers.append(scheduleDailyNotification(habit: habit, components: components))
-            
+
         case .custom:
             if let customFreq = habit.customFrequency {
                 if customFreq.totalDays == 1 {
-                    // One-time notification
                     identifiers.append(scheduleOneTimeNotification(habit: habit, date: customFreq.startDate, components: components))
                 } else {
-                    // Schedule for target days within total days
                     identifiers = scheduleCustomIntervalNotifications(habit: habit, customFreq: customFreq, components: components)
                 }
             }
         }
-        
-        // Update habit with notification identifiers
-        HabitStore().updateNotificationIdentifiers(habitId: habit.id, identifiers: identifiers)
+
+        return identifiers
     }
     
     private func scheduleDailyNotification(habit: Habit, components: DateComponents) -> String {
@@ -116,10 +111,8 @@ class NotificationManager {
         return identifiers
     }
     
-    func cancelNotifications(for habitId: UUID) {
-        if let habit = HabitStore().habits.first(where: { $0.id == habitId }) {
-            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: habit.notificationIdentifiers)
-        }
+    func cancelNotifications(identifiers: [String]) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
     }
 
     // MARK: - Timer Completion Notifications

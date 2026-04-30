@@ -80,27 +80,23 @@ class HabitStore: ObservableObject {
    
     // MARK: - Habit Management
     func addHabit(_ habit: Habit) {
-        habits.append(habit)
+        var habit = habit
         if habit.reminderEnabled {
-                NotificationManager.shared.scheduleNotifications(for: habit)
-            }
+            let identifiers = NotificationManager.shared.scheduleNotifications(for: habit)
+            habit.notificationIdentifiers = identifiers
+        }
+        habits.append(habit)
         playSound(1026)
-        
     }
 
     func deleteHabit(at offsets: IndexSet) {
         for index in offsets {
             let habit = habits[index]
-            // Cancel notifications
-            NotificationManager.shared.cancelNotifications(for: habit.id)
+            NotificationManager.shared.cancelNotifications(identifiers: habit.notificationIdentifiers)
         }
         habits.remove(atOffsets: offsets)
     }
-    func updateNotificationIdentifiers(habitId: UUID, identifiers: [String]) {
-        guard let index = habits.firstIndex(where: { $0.id == habitId }) else { return }
-        habits[index].notificationIdentifiers = identifiers
-    }
-    // ✅ GÜNCELLENMIŞ: Habit completion - timer sessions dahil
+// ✅ GÜNCELLENMIŞ: Habit completion - timer sessions dahil
     func completeHabit(habitId: UUID, value: Int = 0, notes: String? = nil, forceComplete: Bool = false) {
         if let index = habits.firstIndex(where: { $0.id == habitId }) {
             let habit = habits[index]
