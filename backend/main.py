@@ -81,7 +81,7 @@ async def parse_habit(req: ParseHabitRequest):
     try:
         full_prompt = SYSTEM_PROMPT + "\n\n" + user_prompt
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash",
             contents=[types.Content(parts=[types.Part(text=full_prompt)])],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
