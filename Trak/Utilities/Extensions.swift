@@ -112,6 +112,17 @@ struct RoundedCorner: Shape {
 
 // MARK: - Color Extensions
 extension Color {
+    init?(hex: String) {
+        var s = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        s = s.hasPrefix("#") ? String(s.dropFirst()) : s
+        guard s.count == 6, let v = UInt64(s, radix: 16) else { return nil }
+        self.init(.sRGB,
+                  red:     Double((v & 0xFF0000) >> 16) / 255,
+                  green:   Double((v & 0x00FF00) >> 8)  / 255,
+                  blue:    Double( v & 0x0000FF)         / 255,
+                  opacity: 1)
+    }
+
     func customOpacity(_ opacity: Double) -> Color {
         return self.opacity(opacity)  // Now calls the built-in opacity method
     }

@@ -66,6 +66,13 @@ struct ContentView: View {
                         Label("Dashboard", systemImage: selectedTab == 2 ? "chart.bar.fill" : "chart.bar")
                     }
                     .tag(2)
+
+                ProgramsTabView()
+                    .tabItem {
+                        Label("Programs", systemImage: selectedTab == 3 ? "sparkles.rectangle.stack.fill" : "sparkles.rectangle.stack")
+                    }
+                    .tag(3)
+                    .environmentObject(habitStore)
             }
             
            

@@ -1,5 +1,6 @@
 // AIManager.swift
 import Foundation
+import SwiftUI
 
 /// Handles all AI-powered parsing for the Magic Add feature.
 /// Currently uses a mock implementation. Swap `parseHabitPrompt` body
@@ -186,6 +187,101 @@ final class AIManager {
             print("AIManager error: \(error)")
             return nil
         }
+    }
+
+    // MARK: - Program Generation
+
+    struct ProgramResponse: Decodable {
+        let name: String
+        let description: String
+        let detailedDescription: String
+        let icon: String
+        let colorHex: String
+        let duration: Int
+        let habits: [ProgramHabitResponse]
+
+        struct ProgramHabitResponse: Decodable {
+            let name: String
+            let description: String
+            let frequency: String
+            let customTargetDays: Int?
+            let customTotalDays: Int?
+            let dailyGoalType: String?
+            let dailyGoalTarget: Int?
+            let dailyGoalUnit: String?
+            let benefits: String
+        }
+    }
+
+    static func generateProgram(goal: String) async -> HabitProgram? {
+        let url = URL(string: "https://trackie-9jt0.onrender.com/generate-program")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONEncoder().encode(["goal": goal])
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errMsg = json["error"] as? String {
+                print("AIManager: backend error – \(errMsg)")
+                return nil
+            }
+            let response = try JSONDecoder().decode(ProgramResponse.self, from: data)
+            return habitProgram(from: response)
+        } catch {
+            print("AIManager generateProgram error: \(error)")
+            return nil
+        }
+    }
+
+    static func habitProgram(from response: ProgramResponse) -> HabitProgram {
+        let habits = response.habits.map { programHabit(from: $0) }
+        let color = Color(hex: response.colorHex) ?? AppStyles.Colors.primary
+        return HabitProgram(
+            name: String(response.name.prefix(30)),
+            description: response.description,
+            detailedDescription: response.detailedDescription,
+            icon: response.icon,
+            color: color,
+            duration: response.duration,
+            habits: habits
+        )
+    }
+
+    private static func programHabit(from r: ProgramResponse.ProgramHabitResponse) -> ProgramHabit {
+        let freq: Habit.FrequencyType
+        switch r.frequency {
+        case "morning": freq = .morning
+        case "evening": freq = .evening
+        case "custom":  freq = .custom
+        default:        freq = .daily
+        }
+
+        let customFrequency: (targetDays: Int, totalDays: Int)?
+        if freq == .custom, let t = r.customTargetDays, let total = r.customTotalDays {
+            customFrequency = (targetDays: max(1, t), totalDays: max(t, total))
+        } else {
+            customFrequency = nil
+        }
+
+        let dailyGoal: Habit.DailyGoal?
+        if let type = r.dailyGoalType, let target = r.dailyGoalTarget, let unit = r.dailyGoalUnit {
+            let goalType: Habit.DailyGoal.GoalType = type == "duration" ? .duration : .count
+            dailyGoal = Habit.DailyGoal(type: goalType, target: max(1, target), increment: 1, unit: unit)
+        } else {
+            dailyGoal = nil
+        }
+
+        return ProgramHabit(
+            name: String(r.name.prefix(25)),
+            description: r.description,
+            frequency: freq,
+            dailyGoal: dailyGoal,
+            customFrequency: customFrequency,
+            tips: [],
+            benefits: r.benefits
+        )
     }
 
     // MARK: - Private Helpers

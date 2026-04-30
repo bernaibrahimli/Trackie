@@ -74,6 +74,77 @@ Output: {"name":"Go for a run","frequency":"custom","customFrequency":{"targetDa
 """
 
 
+# --- Generate Program ---
+
+class GenerateProgramRequest(BaseModel):
+    goal: str
+
+
+GENERATE_PROGRAM_PROMPT = """
+You are a habit-building assistant. Generate a multi-habit program based on the user's goal.
+
+OUTPUT SCHEMA:
+{
+  "name": string,                // Program name, max 30 chars, title-case
+  "description": string,         // One-sentence description, max 80 chars
+  "detailedDescription": string, // 2-3 sentence paragraph explaining the program
+  "icon": string,                // MUST be exactly one of: "leaf.circle.fill", "figure.run", "brain.head.profile", "moon.stars.fill", "drop.fill", "book.fill", "heart.fill", "globe", "fork.knife", "bed.double.fill", "figure.mind.and.body", "dumbbell.fill", "music.note", "paintbrush.fill", "laptopcomputer"
+  "colorHex": string,            // MUST be exactly one of: "#34C759", "#007AFF", "#FF9500", "#AF52DE", "#FF3B30", "#5AC8FA", "#5856D6"
+  "duration": number,            // Days, between 7 and 30
+  "habits": [                    // Array of exactly 4 to 6 habits
+    {
+      "name": string,            // Max 25 chars, title-case
+      "description": string,     // One sentence describing the habit
+      "frequency": string,       // One of: "daily" | "morning" | "evening" | "custom"
+      "customTargetDays": number | null,  // e.g. 3 — only when frequency == "custom", else null
+      "customTotalDays": number | null,   // e.g. 7 — only when frequency == "custom", else null
+      "dailyGoalType": string | null,     // "count" | "duration" | null
+      "dailyGoalTarget": number | null,   // null when dailyGoalType is null
+      "dailyGoalUnit": string | null,     // e.g. "glasses", "min", "times" — null when dailyGoalType is null
+      "benefits": string                  // Short benefit phrase, max 40 chars
+    }
+  ]
+}
+
+RULES:
+- Return exactly 4 to 6 habits — no more, no less
+- Choose the icon and colorHex that best matches the program theme
+- Use "custom" frequency only when a habit should NOT happen every day (e.g. "3x a week")
+- Use "morning" or "evening" only for habits tied to those time windows with no count/duration
+- dailyGoalType null for simple once-per-day habits (e.g. "Take vitamins", "Meditate")
+- Make habits specific, actionable, and varied — don't repeat the same type
+- Program name and habit names must be concise and motivating
+- Strip filler from goal: "I want to", "Help me", "I'd like to"
+"""
+
+
+@app.post("/generate-program")
+async def generate_program(req: GenerateProgramRequest):
+    user_prompt = f'Generate a habit program for this goal: "{req.goal.strip()}"'
+
+    try:
+        full_prompt = GENERATE_PROGRAM_PROMPT + "\n\n" + user_prompt
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[types.Content(parts=[types.Part(text=full_prompt)])],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+
+        print(f"\n--- GENERATE PROGRAM INPUT ---\n{req.goal}")
+        print(f"--- OUTPUT ---\n{response.text}\n")
+
+        data = json.loads(response.text)
+        return data
+
+    except Exception as e:
+        import traceback
+        print(f"Error: {e}")
+        traceback.print_exc()
+        return {"error": str(e)}
+
+
 @app.post("/parse-habit")
 async def parse_habit(req: ParseHabitRequest):
     user_prompt = f'Parse this habit: "{req.text.strip()}"'
